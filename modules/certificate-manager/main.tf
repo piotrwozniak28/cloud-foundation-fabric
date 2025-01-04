@@ -29,7 +29,7 @@ resource "google_certificate_manager_certificate_map_entry" "entries" {
   description  = each.value.description
   map          = google_certificate_manager_certificate_map.map[0].name
   labels       = each.value.labels
-  certificates = [for v in each.value.certificates : google_certificate_manager_certificate.certificates[v].id]
+  certificates = [for v in each.value.certificates : google_certificate_manager_certificate.certificates[v].id] # Certificate Manager currently doesn't support regional certificate_maps or certificate_map_entries. They can only be global, so terraform sets the location to global by default. src: https://github.com/hashicorp/terraform-provider-google/issues/19437#issuecomment-2413785588
   hostname     = each.value.hostname
   matcher      = each.value.matcher
 }
@@ -46,7 +46,7 @@ resource "google_certificate_manager_certificate" "certificates" {
     for_each = each.value.managed == null ? [] : [""]
     content {
       domains            = each.value.managed.domains
-      dns_authorizations = each.value.managed.dns_authorizations
+      dns_authorizations = [for v in each.value.managed.dns_authorizations : "projects/${var.project_id}/locations/${each.value.location == null ? "global" : each.value.location}/dnsAuthorizations/${v}"] # Combining this value, as Google-suggested "each.value.managed.dns_authorizations" results in an error: Error creating Certificate: googleapi: Error 400: invalid name Details: [ { "@type": "type.googleapis.com/google.rpc.BadRequest", "fieldViolations": [ { "description": "invalid name", "field": "managed.dns_authorizations[0]" } ] } ]
       issuance_config    = try(google_certificate_manager_certificate_issuance_config.default[each.value.managed.issuance_config].id, null)
     }
   }
@@ -57,6 +57,11 @@ resource "google_certificate_manager_certificate" "certificates" {
       pem_private_key = each.value.self_managed.pem_private_key
     }
   }
+}
+
+resource "time_sleep" "sleep_30s" {
+  depends_on      = [google_certificate_manager_dns_authorization.dns_authorizations]
+  create_duration = "30s"
 }
 
 resource "google_certificate_manager_dns_authorization" "dns_authorizations" {

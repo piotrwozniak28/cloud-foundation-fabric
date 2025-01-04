@@ -20,6 +20,7 @@ output "certificate_ids" {
 }
 
 output "certificates" {
+  sensitive   = true
   description = "Certificates."
   value       = google_certificate_manager_certificate.certificates
 }
@@ -34,5 +35,15 @@ output "map_id" {
   value       = var.map == null ? null : google_certificate_manager_certificate_map.map[0].id
 }
 
+output "z_google_certificate_manager_dns_authorization" {
+  value = google_certificate_manager_dns_authorization.dns_authorizations
+}
 
-
+output "zz_recordsets" {
+  value = {
+    for k, v in google_certificate_manager_dns_authorization.dns_authorizations : "${v.dns_resource_record[0].type} ${v.dns_resource_record[0].name}" => {
+      ttl     = 300
+      records = [v.dns_resource_record[0].data]
+    }
+  }
+}
